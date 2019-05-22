@@ -1,0 +1,3 @@
+module WaveletRegression
+
+end # module

@@ -1,0 +1,7 @@
+name = "WaveletRegression"
+uuid = "e1bea930-7cbe-11e9-25b9-4b18dccebc95"
+authors = ["urmy "]
+version = "0.1.0"
+
+[deps]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
