@@ -11,12 +11,14 @@ export
     WaveletRegressionModel,
     modwt_matrix,
     imodwt_matrix,
+    dwt_matrix,
+    idwt_matrix,
     predict
 export wavelet, WT
 
 abstract type AbstractWaveletTransform end
 
-for transformtype in [:MODWT, :DWT, :DWPT]
+for transformtype in [:MODWT, :DWT, :WPT]
     @eval begin
         struct $transformtype <: AbstractWaveletTransform
             wavelet::DiscreteWavelet
@@ -60,7 +62,6 @@ function imodwt_matrix(Xw::AbstractArray, trans::MODWT)
     hcat([imodwt(Xw[:, :, i], trans.wavelet) for i in 1:nvars]...)
 end
 
-
 function wavelm(X::AbstractVecOrMat, Y::AbstractVecOrMat, trans::MODWT)
     Xw = modwt_matrix(X, trans)
     Yw = modwt_matrix(Y, trans)
@@ -70,5 +71,28 @@ function wavelm(X::AbstractVecOrMat, Y::AbstractVecOrMat, trans::MODWT)
     my = div(length(Y), n)
     return WaveletRegressionModel(X, Y, n, mx, my, Xw, Yw, trans, BB)
 end
+
+function dwt_matrix(X::AbstractVecOrMat, trans::DWT)
+    return hcat([dwt(X[:, i], trans.wavelet, trans.nlevels) for i in 1:size(X, 2)]...)
+end
+
+function idwt_matrix(Xw::AbstractArray, trans::DWT)
+    n, nvars = size(Xw)
+    hcat([idwt(Xw[:, i], trans.wavelet, trans.nlevels) for i in 1:nvars]...)
+end
+
+function wavelm(X::AbstractVecOrMat, Y::AbstractVecOrMat, trans::DWT)
+    Xw = dwt_matrix(X, trans)
+    Yw = dwt_matrix(Y, trans)
+    n = size(Xw, 1)
+    indices = [detailrange(n, j) for j in 1:trans.nlevels]
+    push!(indices, 1:detailindex(n, trans.nlevels, 1)-1) # scaling coef indices
+    BB = [Xw[ii, :] \ Yw[ii, :] for ii in indices]
+    n = size(X, 1)
+    mx = div(length(X), n)
+    my = div(length(Y), n)
+    return WaveletRegressionModel(X, Y, n, mx, my, Xw, Yw, trans, BB)
+end
+
 
 end # module

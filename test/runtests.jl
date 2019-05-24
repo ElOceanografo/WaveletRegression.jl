@@ -19,9 +19,18 @@ end
 @testset "Utilities" begin
     @setupvars
     X = randn(n, mx)
+    # MODWT
     Xw = modwt_matrix(X, trans)
     X1 = imodwt_matrix(Xw, trans)
     @test size(Xw) == (n, nlevels+1, mx)
+    @test size(X1) == size(X)
+    @test all(X .≈ X1)
+
+    # DWT
+    trans = DWT(wt, nlevels)
+    Xw = dwt_matrix(X, trans)
+    X1 = idwt_matrix(Xw, trans)
+    @test size(Xw) == (n, mx)
     @test size(X1) == size(X)
     @test all(X .≈ X1)
 end
@@ -48,4 +57,7 @@ end
     @test all(size(B) == (mx, my) for B  in res1.coefficients)
     Y_pred = predict(res1)
     Y_pred = predict(res1, randn(size(X)))
+
+    trans = DWT(wt, nlevels)
+    res2 = wavelm(X, Y, trans)
 end
