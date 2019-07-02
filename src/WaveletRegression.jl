@@ -1,7 +1,10 @@
+
 module WaveletRegression
 
 using Wavelets
 using Statistics
+using LinearAlgebra
+
 export
     wavelm,
     AbstractWaveletTransform,
@@ -13,7 +16,16 @@ export
     imodwt_matrix,
     dwt_matrix,
     idwt_matrix,
-    predict
+    predict,
+    predict_wavespace,
+    coef,
+    ncoeffs,
+    dof,
+    nlevels,
+    residuals,
+    regression_stderr,
+    coef_stderr
+
 export wavelet, WT
 
 abstract type AbstractWaveletTransform end
@@ -42,16 +54,52 @@ struct WaveletRegressionModel
 end
 Wavelets.wavelet(mod::WaveletRegressionModel) = wavelet(mod.trans)
 nlevels(mod::WaveletRegressionModel) = nlevels(mod.trans)
+coef(mod::WaveletRegressionModel) = mod.coefficients
+ncoeffs(mod::WaveletRegressionModel) = sum(length(B) for B in mod.coefficients)
+dof(mod::WaveletRegressionModel) = mod.n - ncoeffs(mod)
 
-function predict(mod::WaveletRegressionModel, newX)
-    @assert size(newX) == size(mod.X)
-    newXw = modwt_matrix(newX, mod.trans)
+function predict_wavespace(mod::WaveletRegressionModel, newXw::AbstractArray)
     Yw = cat([reshape(newXw[:, j, :] * mod.coefficients[j], (mod.n, 1, mod.my))
         for j in 1:nlevels(mod)+1]..., dims=2)
+    return Yw
+end
+
+function predict(mod::WaveletRegressionModel, newX::AbstractVecOrMat)
+    @assert size(newX) == size(mod.X)
+    newXw = modwt_matrix(newX, mod.trans)
+    Yw = predict_wavespace(mod, newXw)
     Y = imodwt_matrix(Yw, mod.trans)
     return Y
 end
 predict(mod::WaveletRegressionModel) = predict(mod, mod.X)
+
+function residuals(mod::WaveletRegressionModel)
+    Yw_pred = predict_wavespace(mod, mod.Xw)
+    return mod.Yw .- Yw_pred
+end
+
+function regression_stderr(mod::WaveletRegressionModel, unbiased=true)
+    resid = residuals(mod)
+    s2 = reshape(sum(abs2 , resid, dims=1) / dof(mod), (mod.my, :))
+    if unbiased
+        return s2
+    else
+        return s2 * dof(mod) / mod.n
+    end
+end
+
+function coef_stderr(mod::WaveletRegressionModel, unbiased=true)
+    s2 = regression_stderr(mod, unbiased)
+    L = mod.trans.nlevels + 1
+    Qxx =  [mod.Xw[:, j, :]' * mod.Xw[:, j, :] for j in 1:L]
+    SE = deepcopy(coef(mod))
+    for j in 1:L
+        for i in 1:mod.my
+            SE[j][:, i] .= sqrt.(diag(s2[i, j] .* inv(Qxx[j])))
+        end
+    end
+    return SE
+end
 
 function modwt_matrix(X::AbstractVecOrMat, trans::MODWT)
     return cat([modwt(X[:, i], trans.wavelet, trans.nlevels) for i in 1:size(X, 2)]..., dims=3)

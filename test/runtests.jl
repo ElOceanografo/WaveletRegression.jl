@@ -11,6 +11,7 @@ macro setupvars()
         my = 3
         wt = wavelet(WT.db2)
         nlevels = 4
+        L = nlevels + 1
         trans = MODWT(wt, nlevels)
     end
     return esc(ex)
@@ -41,7 +42,7 @@ end
     X = randn(n)
     Y = randn(n)
     res1 = wavelm(X, Y, trans)
-    @test length(res1.coefficients) == nlevels + 1
+    @test length(res1.coefficients) == L
     @test all(size(B) == (1, 1) for B  in res1.coefficients)
     Y_pred = predict(res1)
     Y_pred = predict(res1, randn(size(X)))
@@ -53,11 +54,18 @@ end
     X = randn(n, mx)
     Y = randn(n, my)
     res1 = wavelm(X, Y, trans)
-    @test length(res1.coefficients) == nlevels + 1
+    @test length(res1.coefficients) == L
     @test all(size(B) == (mx, my) for B  in res1.coefficients)
+    @test ncoeffs(res1) == mx * my * (L)
+    @test dof(res1) == n - mx * my * (L)
+    @test size(regression_stderr(res1)) == (my, L)
     Y_pred = predict(res1)
     Y_pred = predict(res1, randn(size(X)))
-
+    SE = coef_stderr(res1)
+    BB = coef(res1)
+    @test length(SE) == length(BB) == L
+    @test all([size(SE[i]) == size(BB[i]) for i in 1:L])
+    @test all([all(se .>= 0) for se in SE])
     trans = DWT(wt, nlevels)
     res2 = wavelm(X, Y, trans)
 end
