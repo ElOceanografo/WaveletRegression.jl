@@ -92,7 +92,7 @@ function coef_stderr(mod::WaveletRegressionModel, unbiased=true)
     s2 = regression_stderr(mod, unbiased)
     L = mod.trans.nlevels + 1
     Qxx =  [mod.Xw[:, j, :]' * mod.Xw[:, j, :] for j in 1:L]
-    SE = deepcopy(coef(mod))
+    SE = [similar(B) for B in coef(mod)]
     for j in 1:L
         for i in 1:mod.my
             SE[j][:, i] .= sqrt.(diag(s2[i, j] .* inv(Qxx[j])))
