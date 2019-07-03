@@ -89,6 +89,7 @@ function regression_stderr(mod::WaveletRegressionModel, unbiased=true)
 end
 
 function coef_stderr(mod::WaveletRegressionModel, unbiased=true)
+    # https://en.wikipedia.org/wiki/Ordinary_least_squares
     s2 = regression_stderr(mod, unbiased)
     L = mod.trans.nlevels + 1
     Qxx =  [mod.Xw[:, j, :]' * mod.Xw[:, j, :] for j in 1:L]
