@@ -59,13 +59,14 @@ ncoeffs(mod::WaveletRegressionModel) = sum(length(B) for B in mod.coefficients)
 dof(mod::WaveletRegressionModel) = mod.n - ncoeffs(mod)
 
 function predict_wavespace(mod::WaveletRegressionModel, newXw::AbstractArray)
-    Yw = cat([reshape(newXw[:, j, :] * mod.coefficients[j], (mod.n, 1, mod.my))
+    n = size(newXw, 1)
+    Yw = cat([reshape(newXw[:, j, :] * mod.coefficients[j], (n, 1, mod.my))
         for j in 1:nlevels(mod)+1]..., dims=2)
     return Yw
 end
 
 function predict(mod::WaveletRegressionModel, newX::AbstractVecOrMat)
-    @assert size(newX) == size(mod.X)
+    @assert size(newX, 2) == size(mod.X, 2)
     newXw = modwt_matrix(newX, mod.trans)
     Yw = predict_wavespace(mod, newXw)
     Y = imodwt_matrix(Yw, mod.trans)

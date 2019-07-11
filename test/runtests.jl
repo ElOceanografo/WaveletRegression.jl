@@ -45,7 +45,8 @@ end
     @test length(res1.coefficients) == L
     @test all(size(B) == (1, 1) for B  in res1.coefficients)
     Y_pred = predict(res1)
-    Y_pred = predict(res1, randn(size(X)))
+    Y_pred = predict(res1, randn(length(X)))
+    Y_pred = predict(res1, randn(length(X) + 1))
 end
 
 # matrix X and Y
@@ -61,6 +62,7 @@ end
     @test size(regression_stderr(res1)) == (my, L)
     Y_pred = predict(res1)
     Y_pred = predict(res1, randn(size(X)))
+    Y_pred = predict(res1, randn(size(X, 1) + 1, size(X, 2)))
     SE = coef_stderr(res1)
     BB = coef(res1)
     @test length(SE) == length(BB) == L
