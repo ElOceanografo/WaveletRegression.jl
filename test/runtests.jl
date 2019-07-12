@@ -57,14 +57,17 @@ end
     res1 = wavelm(X, Y, trans)
     @test length(res1.coefficients) == L
     @test all(size(B) == (mx, my) for B  in res1.coefficients)
-    @test ncoeffs(res1) == mx * my * (L)
-    @test dof(res1) == n - mx * my * (L)
+    @test ncoef(res1) == mx * my * (L)
+    @test dof(res1) == n - mx * my * (L) - 1
     @test size(regression_stderr(res1)) == (my, L)
     Y_pred = predict(res1)
     Y_pred = predict(res1, randn(size(X)))
     Y_pred = predict(res1, randn(size(X, 1) + 1, size(X, 2)))
     SE = coef_stderr(res1)
     BB = coef(res1)
+    BBshrunk = coef_shrunk(res1)
+    @test all([B != Bs for (B, Bs) in zip(BB, BBshrunk)])
+    res1shrunk = shrink(res1)
     @test length(SE) == length(BB) == L
     @test all([size(SE[i]) == size(BB[i]) for i in 1:L])
     @test all([all(se .>= 0) for se in SE])

@@ -19,12 +19,14 @@ export
     predict,
     predict_wavespace,
     coef,
-    ncoeffs,
+    ncoef,
     dof,
     nlevels,
     residuals,
     regression_stderr,
-    coef_stderr
+    coef_stderr,
+    coef_shrunk,
+    shrink
 
 export wavelet, WT
 
@@ -55,8 +57,8 @@ end
 Wavelets.wavelet(mod::WaveletRegressionModel) = wavelet(mod.trans)
 nlevels(mod::WaveletRegressionModel) = nlevels(mod.trans)
 coef(mod::WaveletRegressionModel) = mod.coefficients
-ncoeffs(mod::WaveletRegressionModel) = sum(length(B) for B in mod.coefficients)
-dof(mod::WaveletRegressionModel) = mod.n - ncoeffs(mod)
+ncoef(mod::WaveletRegressionModel) = sum(length(B) for B in mod.coefficients)
+dof(mod::WaveletRegressionModel) = mod.n - ncoef(mod) - 1
 
 function predict_wavespace(mod::WaveletRegressionModel, newXw::AbstractArray)
     n = size(newXw, 1)
@@ -81,12 +83,46 @@ end
 
 function regression_stderr(mod::WaveletRegressionModel, unbiased=true)
     resid = residuals(mod)
-    s2 = reshape(sum(abs2 , resid, dims=1) / dof(mod), (mod.my, :))
+    s2 = reshape(sum(abs2 , resid, dims=1), (mod.my, :))
     if unbiased
-        return s2
+        return s2 / dof(mod)
     else
-        return s2 * dof(mod) / mod.n
+        return s2 / mod.n
     end
+end
+
+"""
+Calculate shrinkage factor for regression coefficients.
+J.B. Copas (1983). Regression, prediction, and shrinkage. J. Royal Statistical
+Society B 45(3), 311-354.  https://www.jstor.org/stable/2345402
+"""
+function coef_shrunk(mod::WaveletRegressionModel)
+    BBshrunk = deepcopy(coef(mod))
+    for j in 1:mod.mx
+        Xw = mod.Xw[:, j, :]
+        n = mod.n
+        p = mod.mx * mod.my
+        v = n - p - 1
+        σ2 = regression_stderr(mod)[:, j]
+        B = coef(mod)[j]
+        V = Xw'Xw/n
+        M = cholesky(V).U
+
+        shrinkage = zeros(1, mod.my)
+        for k in 1:mod.my
+            β = B[:, k]
+            ξ = M * β
+            shrinkage[k] = 1 - ((p-2) * σ2[k] * v) / (n * (v+2) * ξ'ξ)
+        end
+        B .*= shrinkage
+    end
+    return BBshrunk
+end
+
+function shrink(mod::WaveletRegressionModel)
+    BB = coef_shrunk(mod)
+    return WaveletRegressionModel(mod.X, mod.Y, mod.n, mod.mx, mod.my,
+        mod.Xw, mod.Yw, mod.trans, BB)
 end
 
 function coef_stderr(mod::WaveletRegressionModel, unbiased=true)
