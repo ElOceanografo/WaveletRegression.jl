@@ -61,13 +61,18 @@ end
     @test dof(res1) == n - mx * my * (L) - 1
     @test size(regression_stderr(res1)) == (my, L)
     Y_pred = predict(res1)
-    Y_pred = predict(res1, randn(size(X)))
-    Y_pred = predict(res1, randn(size(X, 1) + 1, size(X, 2)))
+    Y_pred_shrunk = predict(res1, true)
+    @test Y_pred != Y_pred_shrunk
+    @test all(Y_pred .!= Y_pred_shrunk)
+    @test all(regression_stderr(res1) != regression_stderr(res1, shrink=true))
+    Y_pred_newdata = predict(res1, randn(size(X)))
+    Y_pred_newdata = predict(res1, randn(size(X, 1) + 1, size(X, 2)))
     SE = coef_stderr(res1)
     BB = coef(res1)
     BBshrunk = coef_shrunk(res1)
     @test all([B != Bs for (B, Bs) in zip(BB, BBshrunk)])
     res1shrunk = shrink(res1)
+    @test all([B != Bs for (B, Bs) in zip(coef(res1), coef(res1shrunk))])
     @test length(SE) == length(BB) == L
     @test all([size(SE[i]) == size(BB[i]) for i in 1:L])
     @test all([all(se .>= 0) for se in SE])

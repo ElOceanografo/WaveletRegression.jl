@@ -60,29 +60,34 @@ coef(mod::WaveletRegressionModel) = mod.coefficients
 ncoef(mod::WaveletRegressionModel) = sum(length(B) for B in mod.coefficients)
 dof(mod::WaveletRegressionModel) = mod.n - ncoef(mod) - 1
 
-function predict_wavespace(mod::WaveletRegressionModel, newXw::AbstractArray)
+function predict_wavespace(mod::WaveletRegressionModel, newXw::AbstractArray, shrink=false)
     n = size(newXw, 1)
-    Yw = cat([reshape(newXw[:, j, :] * mod.coefficients[j], (n, 1, mod.my))
+    if shrink
+        BB = coef_shrunk(mod)
+    else
+        BB = mod.coefficients
+    end
+    Yw = cat([reshape(newXw[:, j, :] * BB[j], (n, 1, mod.my))
         for j in 1:nlevels(mod)+1]..., dims=2)
     return Yw
 end
 
-function predict(mod::WaveletRegressionModel, newX::AbstractVecOrMat)
+function predict(mod::WaveletRegressionModel, newX::AbstractVecOrMat, shrink=false)
     @assert size(newX, 2) == size(mod.X, 2)
     newXw = modwt_matrix(newX, mod.trans)
-    Yw = predict_wavespace(mod, newXw)
+    Yw = predict_wavespace(mod, newXw, shrink)
     Y = imodwt_matrix(Yw, mod.trans)
     return Y
 end
-predict(mod::WaveletRegressionModel) = predict(mod, mod.X)
+predict(mod::WaveletRegressionModel, shrink=false) = predict(mod, mod.X, shrink)
 
-function residuals(mod::WaveletRegressionModel)
-    Yw_pred = predict_wavespace(mod, mod.Xw)
+function residuals(mod::WaveletRegressionModel, shrink=false)
+    Yw_pred = predict_wavespace(mod, mod.Xw, shrink)
     return mod.Yw .- Yw_pred
 end
 
-function regression_stderr(mod::WaveletRegressionModel, unbiased=true)
-    resid = residuals(mod)
+function regression_stderr(mod::WaveletRegressionModel; unbiased=true, shrink=false)
+    resid = residuals(mod, shrink)
     s2 = reshape(sum(abs2 , resid, dims=1), (mod.my, :))
     if unbiased
         return s2 / dof(mod)
@@ -114,7 +119,7 @@ function coef_shrunk(mod::WaveletRegressionModel)
             ξ = M * β
             shrinkage[k] = 1 - ((p-2) * σ2[k] * v) / (n * (v+2) * ξ'ξ)
         end
-        B .*= shrinkage
+        BBshrunk[j] = B .* shrinkage
     end
     return BBshrunk
 end
@@ -125,9 +130,9 @@ function shrink(mod::WaveletRegressionModel)
         mod.Xw, mod.Yw, mod.trans, BB)
 end
 
-function coef_stderr(mod::WaveletRegressionModel, unbiased=true)
+function coef_stderr(mod::WaveletRegressionModel; unbiased=true, shrink=false)
     # https://en.wikipedia.org/wiki/Ordinary_least_squares
-    s2 = regression_stderr(mod, unbiased)
+    s2 = regression_stderr(mod, unbiased=unbiased, shrink=shrink)
     L = mod.trans.nlevels + 1
     Qxx =  [mod.Xw[:, j, :]' * mod.Xw[:, j, :] for j in 1:L]
     SE = [similar(B) for B in coef(mod)]
